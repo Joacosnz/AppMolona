@@ -9,6 +9,31 @@ import httpx
 BASE_URL = "https://pokeapi.co/api/v2"
 
 
+def listar_tipos():
+    """Trae la lista de todos los tipos existentes (fuego, agua, dragón, etc.)."""
+    respuesta = httpx.get(f"{BASE_URL}/type")
+    respuesta.raise_for_status()
+    return respuesta.json()  # {"results": [{"name": "fire", "url": ...}, ...]}
+
+
+def obtener_tipo(nombre_tipo):
+    """
+    Trae todos los Pokémon que pertenecen a un tipo puntual.
+    Mucho más rápido que traer TODOS los Pokémon y filtrar del lado
+    de la app -- PokeAPI ya te da la lista filtrada directamente.
+    """
+    respuesta = httpx.get(f"{BASE_URL}/type/{nombre_tipo.lower()}")
+    respuesta.raise_for_status()
+    return respuesta.json()  # trae, entre otras cosas, "pokemon": [{"pokemon": {...}}]
+
+
+def listar_generaciones():
+    """Trae la lista de todas las generaciones existentes."""
+    respuesta = httpx.get(f"{BASE_URL}/generation")
+    respuesta.raise_for_status()
+    return respuesta.json()
+
+
 def obtener_pokemon(nombre_o_id):
     """
     Trae TODOS los datos de un Pokémon puntual: stats base, tipos,
@@ -77,6 +102,22 @@ def obtener_sprite(datos_pokemon):
     para mostrar en una tarjeta de la grilla de búsqueda).
     """
     return datos_pokemon["sprites"]["other"]["official-artwork"]["front_default"]
+
+
+def sprite_url_por_id(id_pokemon):
+    """
+    Arma directamente la URL de la imagen oficial de un Pokémon a partir
+    de su número de Pokédex, SIN hacer ningún pedido a la red.
+
+    Esto es clave para la grilla de búsqueda: mostrar 30 Pokémon a la vez
+    pidiendo los datos completos de cada uno (que traen movimientos,
+    stats, etc.) sería lentísimo. Como el repositorio de imágenes de
+    PokeAPI sigue un patrón de URL predecible, la armamos directo acá.
+    """
+    return (
+        "https://raw.githubusercontent.com/PokeAPI/sprites/master/"
+        f"sprites/pokemon/other/official-artwork/{id_pokemon}.png"
+    )
 
 
 def listar_pokemon(limite=100, offset=0):
