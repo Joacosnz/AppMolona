@@ -145,18 +145,26 @@ def build(page: ft.Page, volver_al_menu):
 
     def cambio_tipo(e):
         resetear_otros_filtros(excepto="tipo")
+        print(f"[DEBUG] Tipo seleccionado: '{dropdown_tipo.value}'")
+
         if dropdown_tipo.value == "todos":
             estado["lista_actual"] = pokemon.listar_todos()
         else:
             estado["lista_actual"] = pokemon.filtrar_por_tipo(dropdown_tipo.value)
+
+        print(f"[DEBUG] Cantidad de resultados tras filtrar: {len(estado['lista_actual'])}")
         dibujar_grilla()
 
     def cambio_generacion(e):
         resetear_otros_filtros(excepto="generacion")
+        print(f"[DEBUG] Generación seleccionada: '{dropdown_generacion.value}'")
+
         if dropdown_generacion.value == "todas":
             estado["lista_actual"] = pokemon.listar_todos()
         else:
             estado["lista_actual"] = pokemon.filtrar_por_generacion(dropdown_generacion.value)
+
+        print(f"[DEBUG] Cantidad de resultados tras filtrar: {len(estado['lista_actual'])}")
         dibujar_grilla()
 
     def cambio_orden(e):
