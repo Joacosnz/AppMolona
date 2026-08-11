@@ -11,6 +11,27 @@ from logic import comparar
 # Se llena una sola vez, la primera vez que se necesita.
 _lista_pokemon_cache = None
 
+# Nombres en español de las ediciones de los juegos, para mostrar en el
+# filtro de "Juego". PokeAPI solo nos da el slug en inglés (ej: "firered"),
+# así que lo traducimos acá mismo -- la lista de juegos "core" es fija,
+# no hace falta pedirle esto a ninguna API.
+NOMBRES_JUEGOS = {
+    "red": "Rojo", "blue": "Azul", "yellow": "Amarillo", "green": "Verde",
+    "gold": "Oro", "silver": "Plata", "crystal": "Cristal",
+    "ruby": "Rubí", "sapphire": "Zafiro", "emerald": "Esmeralda",
+    "firered": "Rojo Fuego", "leafgreen": "Verde Hoja",
+    "diamond": "Diamante", "pearl": "Perla", "platinum": "Platino",
+    "heartgold": "Oro HeartGold", "soulsilver": "Plata SoulSilver",
+    "black": "Negro", "white": "Blanco", "black-2": "Negro 2", "white-2": "Blanco 2",
+    "x": "X", "y": "Y", "omega-ruby": "Rubí Omega", "alpha-sapphire": "Zafiro Alfa",
+    "sun": "Sol", "moon": "Luna", "ultra-sun": "Ultrasol", "ultra-moon": "Ultraluna",
+    "lets-go-pikachu": "Let's Go, Pikachu!", "lets-go-eevee": "Let's Go, Eevee!",
+    "sword": "Espada", "shield": "Escudo",
+    "brilliant-diamond": "Diamante Brillante", "shining-pearl": "Perla Reluciente",
+    "legends-arceus": "Leyendas Arceus",
+    "scarlet": "Escarlata", "violet": "Púrpura",
+}
+
 
 def _extraer_id_desde_url(url):
     """PokeAPI da URLs con forma 'https://pokeapi.co/api/v2/pokemon/445/'. Esto saca el 445."""
@@ -145,6 +166,43 @@ def obtener_generaciones_disponibles():
     return [item["name"] for item in datos["results"]]
 
 
+def obtener_juegos_de_generacion(nombre_generacion):
+    """
+    Devuelve las ediciones de juego que salieron en una generación
+    puntual, ej para "generation-i": Rojo, Azul, Amarillo, Verde.
+
+    Cada elemento es un diccionario:
+      - "version_slug": identificador único de esa edición (lo que
+        guarda el dropdown como value), ej "firered".
+      - "grupo_slug": el "grupo de versión" al que pertenece (ej
+        "firered-leafgreen"), necesario para filtrar_por_juego().
+      - "nombre": nombre en español para mostrar en pantalla.
+    """
+    datos_generacion = pokeapi.obtener_generacion(nombre_generacion)
+
+    juegos = []
+    vistos = set()
+
+    for grupo in datos_generacion["version_groups"]:
+        grupo_slug = grupo["name"]
+        datos_grupo = pokeapi.obtener_grupo_version(grupo_slug)
+
+        for version in datos_grupo["versions"]:
+            version_slug = version["name"]
+
+            if version_slug in vistos:
+                continue
+            vistos.add(version_slug)
+
+            juegos.append({
+                "version_slug": version_slug,
+                "grupo_slug": grupo_slug,
+                "nombre": NOMBRES_JUEGOS.get(version_slug, version_slug.replace("-", " ").title()),
+            })
+
+    return juegos
+
+
 def filtrar_por_tipo(nombre_tipo):
     """Devuelve todos los Pokémon de un tipo puntual, como {"nombre":..., "id":...}."""
     datos_tipo = pokeapi.obtener_tipo(nombre_tipo)
@@ -167,6 +225,36 @@ def filtrar_por_generacion(nombre_generacion):
         }
         for entrada in datos_generacion["pokemon_species"]
     ]
+
+
+def filtrar_por_juego(grupo_slug):
+    """
+    Devuelve todos los Pokémon que pertenecen a la Pokédex regional de
+    un grupo de versión puntual (ej: "diamond-pearl"), como diccionarios
+    {"nombre": ..., "id": ...}.
+
+    Usamos la Pokédex REGIONAL (la primera que trae ese grupo de
+    versión) en vez de la Nacional, porque es la que de verdad refleja
+    qué Pokémon aparecen en esa edición del juego.
+    """
+    datos_grupo = pokeapi.obtener_grupo_version(grupo_slug)
+
+    if not datos_grupo["pokedexes"]:
+        return []
+
+    nombre_pokedex = datos_grupo["pokedexes"][0]["name"]
+    datos_pokedex = pokeapi.obtener_pokedex(nombre_pokedex)
+
+    nombres_en_el_juego = {
+        entrada["pokemon_species"]["name"] for entrada in datos_pokedex["pokemon_entries"]
+    }
+
+    # La Pokédex regional no trae el "id" nacional (el que necesitamos
+    # para armar la URL del sprite) -- lo sacamos de la lista completa
+    # que ya tenemos en caché.
+    todos = _obtener_lista_de_pokemon()
+
+    return [item for item in todos if item["nombre"] in nombres_en_el_juego]
 
 
 def ordenar(lista_pokemon, criterio):

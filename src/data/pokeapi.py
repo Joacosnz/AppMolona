@@ -31,9 +31,32 @@ def obtener_especie(nombre_o_id):
 def obtener_generacion(numero_o_nombre):
     """
     Trae los datos de UNA generación puntual (ej: 3, o "generation-iii"),
-    incluyendo la lista completa de Pokémon que existen en esa generación.
+    incluyendo la lista completa de Pokémon que existen en esa generación
+    y qué "grupos de versión" (ediciones del juego) salieron en ella.
     """
     respuesta = httpx.get(f"{BASE_URL}/generation/{str(numero_o_nombre).lower()}")
+    respuesta.raise_for_status()
+    return respuesta.json()
+
+
+def obtener_grupo_version(nombre_o_id):
+    """
+    Trae los datos de un "grupo de versión" (ej: "diamond-pearl" agrupa
+    Diamante y Perla, que comparten el mismo juego base). Entre otras
+    cosas, incluye las ediciones concretas (versions) y la Pokédex
+    regional de ese grupo -- lo usamos para el filtro de "Juego".
+    """
+    respuesta = httpx.get(f"{BASE_URL}/version-group/{str(nombre_o_id).lower()}")
+    respuesta.raise_for_status()
+    return respuesta.json()
+
+
+def obtener_pokedex(nombre_o_id):
+    """
+    Trae una Pokédex puntual (ej: la regional de Kanto, o la Nacional),
+    con la lista de especies que contiene.
+    """
+    respuesta = httpx.get(f"{BASE_URL}/pokedex/{str(nombre_o_id).lower()}")
     respuesta.raise_for_status()
     return respuesta.json()
 
