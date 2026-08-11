@@ -5,114 +5,105 @@
 
 import httpx
 
-# URL base: todas las consultas empiezan igual, solo cambia lo que va después.
 BASE_URL = "https://pokeapi.co/api/v2"
+
+
+def obtener_pokemon(nombre_o_id):
+    """Trae TODOS los datos de un Pokémon puntual: stats, tipos, habilidades, sprites, etc."""
+    url = f"{BASE_URL}/pokemon/{str(nombre_o_id).lower()}"
+    respuesta = httpx.get(url)
+    respuesta.raise_for_status()
+    return respuesta.json()
+
+
+def obtener_especie(nombre_o_id):
+    """
+    Trae datos de la 'especie' del Pokémon: descripción de Pokédex en
+    varios idiomas, grupos huevo, tasa de captura, y la URL de su
+    cadena evolutiva (necesaria para obtener_cadena_evolutiva).
+    """
+    url = f"{BASE_URL}/pokemon-species/{str(nombre_o_id).lower()}"
+    respuesta = httpx.get(url)
+    respuesta.raise_for_status()
+    return respuesta.json()
+
+
+def obtener_generacion(numero_o_nombre):
+    """
+    Trae los datos de UNA generación puntual (ej: 3, o "generation-iii"),
+    incluyendo la lista completa de Pokémon que existen en esa generación.
+    """
+    respuesta = httpx.get(f"{BASE_URL}/generation/{str(numero_o_nombre).lower()}")
+    respuesta.raise_for_status()
+    return respuesta.json()
+
+
+def obtener_cadena_evolutiva(url_cadena):
+    """
+    Trae la cadena evolutiva completa. 'url_cadena' viene siempre de
+    obtener_especie(...)["evolution_chain"]["url"] -- por eso acá NO
+    armamos la URL nosotros mismos, la usamos tal cual viene.
+    """
+    respuesta = httpx.get(url_cadena)
+    respuesta.raise_for_status()
+    return respuesta.json()
+
+
+def obtener_encuentros(nombre_o_id):
+    """Trae en qué lugares (y en qué juegos) se puede encontrar un Pokémon en estado salvaje."""
+    url = f"{BASE_URL}/pokemon/{str(nombre_o_id).lower()}/encounters"
+    respuesta = httpx.get(url)
+    respuesta.raise_for_status()
+    return respuesta.json()
 
 
 def listar_tipos():
     """Trae la lista de todos los tipos existentes (fuego, agua, dragón, etc.)."""
     respuesta = httpx.get(f"{BASE_URL}/type")
     respuesta.raise_for_status()
-    return respuesta.json()  # {"results": [{"name": "fire", "url": ...}, ...]}
+    return respuesta.json()
 
 
 def obtener_tipo(nombre_tipo):
-    """
-    Trae todos los Pokémon que pertenecen a un tipo puntual.
-    Mucho más rápido que traer TODOS los Pokémon y filtrar del lado
-    de la app -- PokeAPI ya te da la lista filtrada directamente.
-    """
+    """Trae todos los Pokémon que pertenecen a un tipo puntual."""
     respuesta = httpx.get(f"{BASE_URL}/type/{nombre_tipo.lower()}")
     respuesta.raise_for_status()
-    return respuesta.json()  # trae, entre otras cosas, "pokemon": [{"pokemon": {...}}]
+    return respuesta.json()
 
 
 def listar_generaciones():
-    """Trae la lista de todas las generaciones existentes."""
+    """Trae la lista de TODAS las generaciones existentes (solo nombres, sin sus Pokémon)."""
     respuesta = httpx.get(f"{BASE_URL}/generation")
     respuesta.raise_for_status()
     return respuesta.json()
 
 
-def obtener_pokemon(nombre_o_id):
-    """
-    Trae TODOS los datos de un Pokémon puntual: stats base, tipos,
-    habilidades, movimientos, sprites (imágenes).
-
-    'nombre_o_id' puede ser:
-      - el nombre en inglés, tal como lo usa PokeAPI (ej: "garchomp")
-      - el número de Pokédex (ej: 445)
-
-    Devuelve un diccionario de Python con toda esa info.
-    """
-    # Armamos la URL completa pegando la base + el Pokémon pedido.
-    # .lower() por las dudas: PokeAPI espera el nombre en minúsculas.
-    url = f"{BASE_URL}/pokemon/{str(nombre_o_id).lower()}"
-
-    respuesta = httpx.get(url)
-
-    # raise_for_status() revisa el código de la respuesta (como el 200
-    # que viste antes). Si vino un error (ej: 404 porque el nombre no
-    # existe), esta línea corta la ejecución y avisa con una excepción,
-    # en vez de seguir de largo con datos vacíos o rotos.
-    respuesta.raise_for_status()
-
-    # .json() convierte el texto que vino de internet en un diccionario
-    # de Python, igual que hiciste en tu prueba con Garchomp.
-    return respuesta.json()
-
-
 def obtener_stats(datos_pokemon):
-    """
-    Recibe el diccionario completo que devuelve obtener_pokemon(), y
-    devuelve solo los stats base, en un formato simple:
-    {"hp": 108, "attack": 130, "defense": 95, ...}
-
-    PokeAPI trae los stats como una LISTA de diccionarios, cada uno con
-    la forma {"base_stat": 108, "stat": {"name": "hp", ...}}. Esta función
-    los "aplana" a algo mucho más fácil de usar en el resto de tu app.
-    """
+    """Recibe el diccionario completo de obtener_pokemon() y devuelve solo los stats base, aplanados."""
     stats_planos = {}
-
     for stat_individual in datos_pokemon["stats"]:
-        nombre_stat = stat_individual["stat"]["name"]     # ej: "hp", "attack"
-        valor_stat = stat_individual["base_stat"]           # ej: 108
+        nombre_stat = stat_individual["stat"]["name"]
+        valor_stat = stat_individual["base_stat"]
         stats_planos[nombre_stat] = valor_stat
-
     return stats_planos
 
 
 def obtener_habilidades(datos_pokemon):
-    """
-    Recibe el diccionario completo de un Pokémon, y devuelve solo los
-    NOMBRES de sus habilidades como una lista simple de strings, ej:
-    ["sand-veil", "rough-skin", "sand-force"]
-
-    PokeAPI trae "abilities" como una lista de diccionarios con más
-    información (si es habilidad oculta o no, en qué posición, etc.) —
-    para tu app por ahora solo te interesa el nombre.
-    """
+    """Devuelve solo los NOMBRES de las habilidades, como lista simple de strings."""
     return [habilidad["ability"]["name"] for habilidad in datos_pokemon["abilities"]]
 
 
 def obtener_sprite(datos_pokemon):
-    """
-    Recibe el diccionario completo de un Pokémon, y devuelve la URL de
-    la imagen principal (el "artwork oficial", que es la de mejor calidad
-    para mostrar en una tarjeta de la grilla de búsqueda).
-    """
+    """Devuelve la URL de la imagen principal (artwork oficial, mejor calidad)."""
     return datos_pokemon["sprites"]["other"]["official-artwork"]["front_default"]
 
 
 def sprite_url_por_id(id_pokemon):
     """
     Arma directamente la URL de la imagen oficial de un Pokémon a partir
-    de su número de Pokédex, SIN hacer ningún pedido a la red.
-
-    Esto es clave para la grilla de búsqueda: mostrar 30 Pokémon a la vez
-    pidiendo los datos completos de cada uno (que traen movimientos,
-    stats, etc.) sería lentísimo. Como el repositorio de imágenes de
-    PokeAPI sigue un patrón de URL predecible, la armamos directo acá.
+    de su número de Pokédex, SIN hacer ningún pedido a la red -- clave
+    para mostrar muchas imágenes juntas en la grilla sin traer los datos
+    completos de cada uno.
     """
     return (
         "https://raw.githubusercontent.com/PokeAPI/sprites/master/"
@@ -121,20 +112,10 @@ def sprite_url_por_id(id_pokemon):
 
 
 def listar_pokemon(limite=100, offset=0):
-    """
-    Trae una lista LIVIANA de Pokémon: solo nombre y URL de cada uno,
-    sin todos sus datos completos. Se usa para armar la grilla de
-    búsqueda sin tener que traer todo de una sola vez (sería lentísimo).
-
-    'limite': cuántos Pokémon traer de una vez.
-    'offset': desde qué posición arrancar (para ir pidiendo de a tandas,
-              tipo paginación: primero los 100 primeros, después los
-              siguientes 100, etc.).
-    """
+    """Trae una lista LIVIANA de Pokémon: solo nombre y URL de cada uno, sin datos completos."""
     respuesta = httpx.get(
         f"{BASE_URL}/pokemon",
         params={"limit": limite, "offset": offset},
     )
     respuesta.raise_for_status()
-
-    return respuesta.json()  # trae algo como {"results": [{"name": ..., "url": ...}, ...]}
+    return respuesta.json()

@@ -27,8 +27,6 @@ def buscar_coincidencia(texto_pedido, opciones, cutoff=0.5):
         return coincidencias[0]
 
     if len(coincidencias) > 1:
-        # Si hay varias (ej: distintas formas del mismo Pokémon),
-        # nos quedamos con la más corta -> normalmente la forma base.
         return min(coincidencias, key=len)
 
     resultado = dif.get_close_matches(texto_pedido, opciones, n=1, cutoff=cutoff)
