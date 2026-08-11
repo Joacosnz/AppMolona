@@ -11,33 +11,27 @@ def main(page: ft.Page):
 
     inicializar_db()
 
-    def mostrar_menu():
-        """Limpia la pantalla y muestra el menú principal."""
+    def mostrar_inicio():
+        """
+        Pantalla de inicio: ahora es directamente la Pokédex completa,
+        con los botones de "Crear equipo" y "Ver equipos" arriba de
+        todo (los arma pokedex_screen.build).
+        """
         page.controls.clear()
-        page.add(
-            ft.Text("Team Builder", size=28, weight=ft.FontWeight.BOLD),
-            ft.ElevatedButton("Crear equipo", on_click=lambda e: mostrar_crear_equipo()),
-            ft.ElevatedButton("Ver equipos", on_click=lambda e: mostrar_ver_equipos()),
-            ft.ElevatedButton("Pokédex", on_click=lambda e: mostrar_pokedex()),
-        )
+        page.add(pokedex_screen.build(page, mostrar_crear_equipo, mostrar_ver_equipos))
         page.update()
 
     def mostrar_crear_equipo():
         page.controls.clear()
-        page.add(crear_equipo_screen.build(page, mostrar_menu))
+        page.add(crear_equipo_screen.build(page, mostrar_inicio))
         page.update()
 
     def mostrar_ver_equipos():
         page.controls.clear()
-        page.add(ver_equipos_screen.build(page, mostrar_menu))
+        page.add(ver_equipos_screen.build(page, mostrar_inicio))
         page.update()
 
-    def mostrar_pokedex():
-        page.controls.clear()
-        page.add(pokedex_screen.build(page, mostrar_menu))
-        page.update()
-
-    mostrar_menu()
+    mostrar_inicio()
 
 
 if __name__ == "__main__":

@@ -2,6 +2,22 @@
 # Pantalla de exploración: muestra Pokémon como tarjetas (imagen + número +
 # nombre), con filtro por tipo/generación y orden por nombre/número.
 # Los filtros están colapsados por defecto, atrás de un botón "Filtros".
+#
+# Esta pantalla cumple DOS roles distintos, según cómo se la llame:
+#
+#   1. Pantalla de INICIO (modo_seleccion=False, el modo por defecto):
+#      se ve la grilla completa, con los botones "Crear equipo" y
+#      "Ver equipos" arriba de todo. Tocar un Pokémon solo muestra sus
+#      datos (stats, habilidades) -- no hace nada más.
+#
+#   2. Modo SELECCIÓN (modo_seleccion=True): se usa cuando "Crear equipo"
+#      necesita que el usuario elija un Pokémon para un slot puntual.
+#      En este modo, tocar un Pokémon abre un diálogo para elegir su
+#      habilidad y confirmarlo -- al confirmar, se llama a
+#      'on_pokemon_elegido' y quien haya abierto esta pantalla decide
+#      qué hacer (normalmente, volver a "Crear equipo" con ese slot ya
+#      cargado). También aparece un botón "Cancelar" en vez de los
+#      botones de navegación normales.
 
 import flet as ft
 
@@ -9,8 +25,25 @@ from data import pokeapi
 from logic import pokemon
 
 
-def build(page: ft.Page, volver_al_menu):
-    """Arma y devuelve el contenido de la pantalla de la Pokédex."""
+def build(
+    page: ft.Page,
+    mostrar_crear_equipo=None,
+    mostrar_ver_equipos=None,
+    modo_seleccion=False,
+    on_pokemon_elegido=None,
+    on_cancelar_seleccion=None,
+):
+    """
+    Arma y devuelve el contenido de la pantalla de la Pokédex.
+
+    En modo normal (modo_seleccion=False), 'mostrar_crear_equipo' y
+    'mostrar_ver_equipos' son las funciones que navegan a esas pantallas.
+
+    En modo selección (modo_seleccion=True), se usan en cambio
+    'on_pokemon_elegido(nombre, habilidad, sprite)' -- llamada cuando el
+    usuario confirma un Pokémon -- y 'on_cancelar_seleccion()' -- llamada
+    si el usuario toca "Cancelar" sin elegir nada.
+    """
 
     # --- Estado de la pantalla ---
     estado = {"lista_actual": [], "filtros_visibles": False}
@@ -61,30 +94,72 @@ def build(page: ft.Page, volver_al_menu):
     # --- Funciones de interacción ---
 
     def abrir_detalle(nombre_pokemon):
-        datos = pokemon.obtener_pokemon(nombre_pokemon)
-        stats = pokeapi.obtener_stats(datos)
-        habilidades = pokeapi.obtener_habilidades(datos)
-        sprite = pokeapi.obtener_sprite(datos)
+        """
+        Al tocar un Pokémon de la grilla: en modo normal muestra sus
+        datos; en modo selección, deja elegirle habilidad y confirmarlo.
+        """
+        try:
+            datos = pokemon.obtener_pokemon(nombre_pokemon)
+            habilidades = pokeapi.obtener_habilidades(datos)
+            sprite = pokeapi.obtener_sprite(datos)
+        except Exception:
+            # Sin internet, conexión caída, timeout, etc. -- avisamos con
+            # un mensaje en vez de que la app se rompa (en el celular,
+            # con datos móviles o wifi débil, esto va a pasar seguido).
+            page.open(
+                ft.SnackBar(
+                    ft.Text("No se pudo conectar. Revisá tu internet e intentá de nuevo.")
+                )
+            )
+            return
 
-        filas_stats = [
-            ft.Text(f"{nombre_stat}: {valor}") for nombre_stat, valor in stats.items()
-        ]
+        if modo_seleccion:
+            dropdown_habilidad = ft.Dropdown(
+                label="Habilidad",
+                width=260,
+                options=[ft.dropdown.Option(h) for h in habilidades],
+                value=habilidades[0] if habilidades else None,
+            )
 
-        dialogo = ft.AlertDialog(
-            title=ft.Text(f"#{datos['id']} {nombre_pokemon.capitalize()}"),
-            content=ft.Column(
-                [
-                    ft.Image(src=sprite, width=120, height=120),
-                    ft.Text("Stats base:", weight=ft.FontWeight.BOLD),
-                    *filas_stats,
-                    ft.Text("Habilidades:", weight=ft.FontWeight.BOLD),
-                    ft.Text(", ".join(habilidades)),
+            def confirmar(e):
+                on_pokemon_elegido(nombre_pokemon, dropdown_habilidad.value, sprite)
+
+            dialogo = ft.AlertDialog(
+                title=ft.Text(f"#{datos['id']} {nombre_pokemon.capitalize()}"),
+                content=ft.Column(
+                    [
+                        ft.Image(src=sprite, width=100, height=100),
+                        dropdown_habilidad,
+                    ],
+                    tight=True,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                actions=[
+                    ft.ElevatedButton("Agregar al equipo", on_click=confirmar),
+                    ft.TextButton("Cancelar", on_click=lambda e: cerrar_dialogo()),
                 ],
-                tight=True,
-                scroll=ft.ScrollMode.AUTO,
-            ),
-            actions=[ft.TextButton("Cerrar", on_click=lambda e: cerrar_dialogo())],
-        )
+            )
+        else:
+            stats = pokeapi.obtener_stats(datos)
+            filas_stats = [
+                ft.Text(f"{nombre_stat}: {valor}") for nombre_stat, valor in stats.items()
+            ]
+
+            dialogo = ft.AlertDialog(
+                title=ft.Text(f"#{datos['id']} {nombre_pokemon.capitalize()}"),
+                content=ft.Column(
+                    [
+                        ft.Image(src=sprite, width=120, height=120),
+                        ft.Text("Stats base:", weight=ft.FontWeight.BOLD),
+                        *filas_stats,
+                        ft.Text("Habilidades:", weight=ft.FontWeight.BOLD),
+                        ft.Text(", ".join(habilidades)),
+                    ],
+                    tight=True,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+                actions=[ft.TextButton("Cerrar", on_click=lambda e: cerrar_dialogo())],
+            )
 
         def cerrar_dialogo():
             dialogo.open = False
@@ -145,26 +220,22 @@ def build(page: ft.Page, volver_al_menu):
 
     def cambio_tipo(e):
         resetear_otros_filtros(excepto="tipo")
-        print(f"[DEBUG] Tipo seleccionado: '{dropdown_tipo.value}'")
 
         if dropdown_tipo.value == "todos":
             estado["lista_actual"] = pokemon.listar_todos()
         else:
             estado["lista_actual"] = pokemon.filtrar_por_tipo(dropdown_tipo.value)
 
-        print(f"[DEBUG] Cantidad de resultados tras filtrar: {len(estado['lista_actual'])}")
         dibujar_grilla()
 
     def cambio_generacion(e):
         resetear_otros_filtros(excepto="generacion")
-        print(f"[DEBUG] Generación seleccionada: '{dropdown_generacion.value}'")
 
         if dropdown_generacion.value == "todas":
             estado["lista_actual"] = pokemon.listar_todos()
         else:
             estado["lista_actual"] = pokemon.filtrar_por_generacion(dropdown_generacion.value)
 
-        print(f"[DEBUG] Cantidad de resultados tras filtrar: {len(estado['lista_actual'])}")
         dibujar_grilla()
 
     def cambio_orden(e):
@@ -191,11 +262,30 @@ def build(page: ft.Page, volver_al_menu):
     dropdown_orden.on_change = cambio_orden
 
     boton_buscar = ft.ElevatedButton("Buscar", on_click=buscar)
-    boton_volver = ft.ElevatedButton("Volver al menú", on_click=lambda e: volver_al_menu())
     boton_filtros = ft.OutlinedButton("Filtros", icon=ft.Icons.FILTER_LIST, on_click=alternar_filtros)
     boton_restablecer = ft.TextButton(
         "Restablecer filtros", icon=ft.Icons.REFRESH, on_click=restablecer_filtros
     )
+
+    # --- Encabezado: cambia según el modo ---
+
+    if modo_seleccion:
+        titulo = ft.Text("Elegí un Pokémon", size=24, weight=ft.FontWeight.BOLD)
+        botones_encabezado = ft.Row(
+            [ft.TextButton("Cancelar", on_click=lambda e: on_cancelar_seleccion())]
+        )
+    else:
+        titulo = ft.Text("Team Builder", size=24, weight=ft.FontWeight.BOLD)
+        botones_encabezado = ft.Row(
+            [
+                ft.ElevatedButton(
+                    "Crear equipo", icon=ft.Icons.ADD, on_click=lambda e: mostrar_crear_equipo()
+                ),
+                ft.ElevatedButton(
+                    "Ver equipos", icon=ft.Icons.GROUPS, on_click=lambda e: mostrar_ver_equipos()
+                ),
+            ]
+        )
 
     # Panel de filtros: arranca oculto (visible=False), se despliega al
     # tocar el botón "Filtros".
@@ -216,12 +306,15 @@ def build(page: ft.Page, volver_al_menu):
 
     return ft.Column(
         [
-            ft.Text("Pokédex", size=24, weight=ft.FontWeight.BOLD),
+            ft.Row(
+                [titulo, botones_encabezado],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            ft.Divider(),
             ft.Row([campo_busqueda, boton_buscar, boton_filtros]),
             panel_filtros,
             texto_estado,
             grilla_resultados,
-            boton_volver,
         ],
         expand=True,
     )
